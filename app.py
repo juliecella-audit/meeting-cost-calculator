@@ -66,8 +66,8 @@ init_state()
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 2.1rem;
-    padding-bottom: 2rem;
+    padding-top: 2.8rem;
+    padding-bottom: 2.2rem;
 }
 [data-testid="stSidebar"] {
     background: #f7f9fc;
@@ -80,8 +80,8 @@ st.markdown("""
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 0.35rem;
-    margin-bottom: 6px;
+    margin-top: 0.9rem;
+    margin-bottom: 10px;
 }
 .solution-bar-label { color: #173f8a; font-size: 0.92rem; font-weight: 700; text-transform: uppercase; letter-spacing:.04em; }
 .solution-bar-sub   { color: #3a5798; font-size: 0.88rem; margin-top: 3px; }
@@ -145,12 +145,13 @@ st.markdown("""
 .chart-ann {
     border: 1.5px solid #d0daea;
     border-radius: 10px;
-    padding: 16px 14px;
+    padding: 18px 14px 20px 14px;
     background: #f8faff;
     text-align: center;
+    min-height: 170px;
 }
 .chart-ann-label { color: #5b6470; font-size: 0.9rem; line-height: 1.35; }
-.chart-ann-value { color: #13823b; font-size: 2.2rem; font-weight: 800; line-height: 1.1; }
+.chart-ann-value { color: #13823b; font-size: 3rem; font-weight: 800; line-height: 1.05; margin: 10px 0 8px 0; word-break: keep-all; overflow-wrap: normal; }
 
 .banner {
     background: #fffbec;
@@ -172,7 +173,7 @@ st.markdown("""
 .recalc-note { color: #6a7384; font-size: 0.82rem; margin-top: 6px; }
 
 .title-block {
-    padding-top: 0.4rem;
+    padding-top: 0.9rem;
 }
 .title-block h2 {
     margin-bottom: 0.45rem;
@@ -381,12 +382,12 @@ with right_col:
     st.markdown('<div class="sec-header">Cumulative Cost Over Time</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-body">', unsafe_allow_html=True)
 
-    chart_col, ann_col = st.columns([1.6, 0.6], gap="medium")
+    chart_col, ann_col = st.columns([1.75, 0.75], gap="medium")
 
     with chart_col:
         if not result_df.empty and "meeting_date" in result_df.columns:
             plot_df = result_df.dropna(subset=["meeting_date"]).copy()
-            fig, ax = plt.subplots(figsize=(6, 3.2))
+            fig, ax = plt.subplots(figsize=(6.3, 3.2))
             ax.plot(
                 plot_df["meeting_date"],
                 plot_df["cumulative_cost"],
@@ -413,7 +414,7 @@ with right_col:
     with ann_col:
         months_label = months_since_request or months_of_meetings
         st.markdown(f"""
-        <div class="chart-ann" style="margin-top:30px;">
+        <div class="chart-ann" style="margin-top:24px;">
             <div class="chart-ann-label">After {months_label} months,<br>you've spent</div>
             <div class="chart-ann-value">{money(total_cost)}</div>
             <div class="chart-ann-label">in meetings.</div>
