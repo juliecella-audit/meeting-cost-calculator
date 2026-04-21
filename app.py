@@ -31,17 +31,6 @@ def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def load_uploaded_or_default(uploaded, default_path: Path) -> pd.DataFrame:
-    return pd.read_csv(uploaded) if uploaded is not None else load_csv(default_path)
-
-
-def months_between(start: date, end: date) -> int:
-    months = (end.year - start.year) * 12 + (end.month - start.month)
-    if end.day < start.day:
-        months -= 1
-    return max(months, 0)
-
-
 def init_state() -> None:
     if "salary_working_df" not in st.session_state:
         st.session_state.salary_working_df = load_csv(DATA_DIR / "salary_table.csv")
@@ -65,15 +54,24 @@ def init_state() -> None:
         st.session_state.fully_loaded = "Yes"
 
 
+def months_between(start: date, end: date) -> int:
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    if end.day < start.day:
+        months -= 1
+    return max(months, 0)
+
+
 init_state()
 
 st.markdown("""
 <style>
-.block-container { padding-top: 1.1rem; padding-bottom: 2rem; }
-[data-testid="stSidebar"] { background: #f7f9fc; }
-
-h2, h3 { letter-spacing: .02em; }
-
+.block-container {
+    padding-top: 2.1rem;
+    padding-bottom: 2rem;
+}
+[data-testid="stSidebar"] {
+    background: #f7f9fc;
+}
 .solution-bar {
     border: 1.5px solid #d0daea;
     border-radius: 14px;
@@ -82,6 +80,7 @@ h2, h3 { letter-spacing: .02em; }
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-top: 0.35rem;
     margin-bottom: 6px;
 }
 .solution-bar-label { color: #173f8a; font-size: 0.92rem; font-weight: 700; text-transform: uppercase; letter-spacing:.04em; }
@@ -150,8 +149,8 @@ h2, h3 { letter-spacing: .02em; }
     background: #f8faff;
     text-align: center;
 }
-.chart-ann-label { color: #5b6470; font-size: 0.9rem; }
-.chart-ann-value { color: #13823b; font-size: 2.2rem; font-weight: 800; }
+.chart-ann-label { color: #5b6470; font-size: 0.9rem; line-height: 1.35; }
+.chart-ann-value { color: #13823b; font-size: 2.2rem; font-weight: 800; line-height: 1.1; }
 
 .banner {
     background: #fffbec;
@@ -171,9 +170,15 @@ h2, h3 { letter-spacing: .02em; }
 
 .small-helper { color: #6a7384; font-size: 0.88rem; }
 .recalc-note { color: #6a7384; font-size: 0.82rem; margin-top: 6px; }
+
+.title-block {
+    padding-top: 0.4rem;
+}
+.title-block h2 {
+    margin-bottom: 0.45rem;
+}
 </style>
 """, unsafe_allow_html=True)
-
 
 with st.sidebar:
     st.header("Navigation")
@@ -264,12 +269,13 @@ fully_loaded = st.session_state.fully_loaded
 
 solution_total = annual_solution_cost + one_time_cost
 
-
 title_col, sol_col = st.columns([1.1, 1], gap="large")
 
 with title_col:
+    st.markdown('<div class="title-block">', unsafe_allow_html=True)
     st.markdown("## MEETING COST CALCULATOR")
     st.caption("Calculate the true cost of meetings while waiting for a solution.  \nSee the impact of time, people, and delay.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with sol_col:
     st.markdown(f"""
@@ -340,9 +346,9 @@ with right_col:
     st.markdown('<div class="sec-header">Total Cost of Meetings</div>', unsafe_allow_html=True)
     st.markdown('<div class="cost-hero-panel">', unsafe_allow_html=True)
 
-    inner_left, inner_right = st.columns([1.35, 0.8], gap="medium")
+    top_left, top_right = st.columns([1.35, 0.8], gap="medium")
 
-    with inner_left:
+    with top_left:
         st.markdown(f"""
         <div class="cost-big-number">{money(total_cost)}</div>
         <div class="cost-label">Total Spent in Meetings</div>
@@ -359,7 +365,7 @@ with right_col:
                 unsafe_allow_html=True,
             )
 
-    with inner_right:
+    with top_right:
         st.markdown(f"""
         <div class="multiplier-box">
             <div class="mult-that">That's</div>
@@ -367,12 +373,10 @@ with right_col:
             <div class="mult-desc">the cost of the<br>{solution_name} per year!</div>
         </div>
         <div class="api-cost-box">
-            <div class="api-cost-label">API Annual Cost</div>
+            <div class="api-cost-label">{solution_name} Annual Cost</div>
             <div class="api-cost-value">{money(solution_total)}</div>
         </div>
         """, unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="sec-header">Cumulative Cost Over Time</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-body">', unsafe_allow_html=True)
@@ -416,6 +420,7 @@ with right_col:
         </div>
         """, unsafe_allow_html=True)
 
+    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown(f"""
