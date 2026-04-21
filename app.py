@@ -1,8 +1,10 @@
-
 from pathlib import Path
 from datetime import date
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import pandas as pd
 import streamlit as st
 
@@ -17,496 +19,377 @@ from utils.calculations import (
 st.set_page_config(page_title="Meeting Cost Calculator", layout="wide")
 
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR  = BASE_DIR / "data"
 ASSET_DIR = BASE_DIR / "assets"
 
 
-def money(value: float) -> str:
-    return f"${value:,.0f}"
-
+# ── helpers ───────────────────────────────────────────────────────────────────
+def money(v: float) -> str:
+    return f"${v:,.0f}"
 
 def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
+def load_uploaded_or_default(uploaded, default_path: Path) -> pd.DataFrame:
+    return pd.read_csv(uploaded) if uploaded is not None else load_csv(default_path)
 
-def load_uploaded_or_default(uploaded_file, default_path: Path) -> pd.DataFrame:
-    if uploaded_file is not None:
-        return pd.read_csv(uploaded_file)
-    return load_csv(default_path)
-
-
-def months_between(start_date: date, end_date: date) -> int:
-    months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-    if end_date.day < start_date.day:
-        months -= 1
-    return max(months, 0)
+def months_between(start: date, end: date) -> int:
+    m = (end.year - start.year) * 12 + (end.month - start.month)
+    if end.day < start.day:
+        m -= 1
+    return max(m, 0)
 
 
-def animated_currency_card(label: str, value: float, accent: str = "#13823b", height: int = 150, element_id: str = "animated-total"):
-    value_int = int(round(value))
-    html = f"""
-    <div class="hero-card" style="min-height:{height}px;">
-        <div class="hero-label">{label}</div>
-        <div class="hero-value" id="{element_id}" style="color:{accent};">$0</div>
-    </div>
-    <script>
-    const endValue = {value_int};
-    const duration = 1800;
-    const startTime = performance.now();
-
-    function formatCurrency(num) {{
-        return '$' + Math.round(num).toLocaleString();
-    }}
-
-    function animateCount(timestamp) {{
-        const progress = Math.min((timestamp - startTime) / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const current = endValue * eased;
-        const el = document.getElementById("{element_id}");
-        if (el) {{
-            el.textContent = formatCurrency(current);
-        }}
-        if (progress < 1) {{
-            requestAnimationFrame(animateCount);
-        }}
-    }}
-    requestAnimationFrame(animateCount);
-    </script>
-    """
-    st.components.v1.html(html, height=height)
-
-
+# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-.block-container {
-    padding-top: 1.3rem;
-    padding-bottom: 2rem;
-}
-[data-testid="stSidebar"] {
-    background: #f6f8fb;
-}
-.hero-card {
-    border: 1px solid #d8e2f0;
-    border-radius: 16px;
-    padding: 20px 24px;
-    background: #ffffff;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.05);
-}
-.hero-label {
-    color: #173f8a;
-    font-size: 0.95rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 10px;
-}
-.hero-value {
-    font-size: 3rem;
-    font-weight: 800;
-    line-height: 1.05;
-}
-.kpi-card {
-    border: 1px solid #e3e8ef;
+.block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
+
+.solution-bar {
+    border: 1.5px solid #d0daea;
     border-radius: 14px;
-    padding: 14px 16px;
-    background: #ffffff;
-    min-height: 112px;
-}
-.kpi-title {
-    color: #5b6470;
-    font-size: 0.9rem;
-    margin-bottom: 6px;
-}
-.kpi-number {
-    color: #1c2330;
-    font-size: 2rem;
-    font-weight: 700;
-    line-height: 1.1;
-}
-.kpi-support {
-    color: #5b6470;
-    font-size: 0.9rem;
-    margin-top: 4px;
-}
-.banner-box {
-    border: 1px solid #e7d9a7;
-    background: #fff9e7;
-    border-radius: 16px;
-    padding: 18px 22px;
-    margin-top: 14px;
-    margin-bottom: 14px;
-}
-.banner-title {
-    color: #7d5a00;
-    font-size: 1.5rem;
-    font-weight: 800;
+    padding: 16px 22px;
+    background: #f5f8ff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 4px;
 }
-.banner-text {
-    color: #4f4f4f;
-    font-size: 1.05rem;
-}
-.section-card {
-    border: 1px solid #e3e8ef;
-    border-radius: 16px;
-    padding: 14px 16px;
-    background: #ffffff;
-    margin-bottom: 14px;
-}
-.edit-card {
-    border: 1px solid #cfdcf6;
-    border-radius: 16px;
-    padding: 16px 18px;
-    background: #f7f9ff;
-    margin-bottom: 14px;
-}
-.edit-card-title {
-    color: #173f8a;
-    font-size: 0.88rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 10px;
-}
-.assumptions-card {
-    border: 1px solid #d8e2f0;
-    border-radius: 16px;
-    padding: 18px 20px;
-    background: #ffffff;
-    margin-bottom: 14px;
-}
-.page-chip {
-    display: inline-block;
-    background: #edf4ff;
-    color: #1746a2;
-    border: 1px solid #cfdcf6;
-    border-radius: 999px;
-    padding: 4px 10px;
+.solution-bar-label { color: #173f8a; font-size: 0.92rem; font-weight: 700; text-transform: uppercase; letter-spacing:.04em; }
+.solution-bar-sub   { color: #3a5798; font-size: 0.88rem; margin-top: 3px; }
+.solution-bar-value { color: #1746a2; font-size: 2.6rem; font-weight: 800; line-height: 1; text-align: right; }
+.solution-bar-per   { color: #1746a2; font-size: 0.9rem; font-weight: 600; text-align: right; }
+
+.sec-header {
+    background: #0e2354;
+    color: #ffffff;
     font-size: 0.82rem;
     font-weight: 700;
-    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    padding: 7px 14px;
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
-.small-note {
-    color: #6b7280;
-    font-size: 0.9rem;
+.sec-body {
+    border: 1.5px solid #d0daea;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 12px 14px 14px 14px;
+    background: #ffffff;
+    margin-bottom: 16px;
 }
+
+.cost-hero-panel {
+    border: 1.5px solid #d0daea;
+    border-radius: 0 0 10px 10px;
+    border-top: none;
+    background: #ffffff;
+    padding: 14px 16px 16px 16px;
+    margin-bottom: 16px;
+}
+.cost-big-number { color: #13823b; font-size: 2.8rem; font-weight: 800; line-height: 1; margin-bottom: 2px; }
+.cost-label      { color: #1c2330; font-size: 1.05rem; font-weight: 700; }
+.cost-sub        { color: #5b6470; font-size: 0.88rem; }
+.multiplier-box  {
+    border: 1.5px solid #d0daea;
+    border-radius: 10px;
+    padding: 10px 14px;
+    background: #f8faff;
+    text-align: center;
+    margin-bottom: 10px;
+}
+.mult-that  { color: #5b6470; font-size: 0.85rem; }
+.mult-num   { color: #1746a2; font-size: 2.2rem; font-weight: 800; line-height: 1.1; }
+.mult-desc  { color: #3a5798; font-size: 0.82rem; }
+.api-cost-box {
+    border: 1.5px solid #d0daea;
+    border-radius: 10px;
+    padding: 10px 14px;
+    background: #f8faff;
+    text-align: center;
+}
+.api-cost-label  { color: #5b6470; font-size: 0.82rem; margin-bottom: 2px; }
+.api-cost-value  { color: #1746a2; font-size: 1.5rem; font-weight: 800; }
+
+.chart-ann {
+    border: 1.5px solid #d0daea;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #f8faff;
+    text-align: center;
+}
+.chart-ann-label { color: #5b6470; font-size: 0.82rem; }
+.chart-ann-value { color: #1746a2; font-size: 1.4rem; font-weight: 800; }
+
+.banner {
+    background: #fffbec;
+    border: 1.5px solid #e8d98a;
+    border-radius: 12px;
+    padding: 16px 22px;
+    margin: 6px 0 18px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.banner-left  { color: #4f4011; font-size: 1rem; }
+.banner-left strong { font-size: 1.05rem; }
+.banner-roi   { color: #b88000; font-size: 1rem; font-weight: 700; white-space: nowrap; }
+.banner-roi span { font-size: 1.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Meeting Cost Calculator")
-st.caption("Calculate the true cost of meetings while waiting for a solution.")
 
-# ── Sidebar (secondary entry point, upload only) ──────────────────────────────
+# ── sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Navigation")
-    view_mode = st.radio(
-        "Choose a view",
-        ["Executive Dashboard", "Calculator & Inputs"],
-        index=0,
-    )
+    view_mode = st.radio("View", ["Dashboard", "Calculator & Inputs"], index=0, label_visibility="collapsed")
 
     st.markdown("---")
-    st.header("Upload replacement CSVs")
-    salary_upload = st.file_uploader(
-        "Upload salary table CSV",
-        type=["csv"],
-        help="Optional. Replaces the default salary table for the current session.",
-    )
-    meeting_upload = st.file_uploader(
-        "Upload meeting log CSV",
-        type=["csv"],
-        help="Optional. Replaces the default meeting log for the current session.",
-    )
+    st.subheader("Upload CSVs")
+    salary_upload  = st.file_uploader("Salary table CSV",  type=["csv"])
+    meeting_upload = st.file_uploader("Meeting log CSV",   type=["csv"])
 
     st.markdown("---")
-    st.caption("Edit tables and assumptions directly on the dashboard.")
+    st.subheader("Solution")
+    solution_name        = st.text_input("Solution name", value="Requested API")
+    annual_solution_cost = st.number_input("Annual cost ($)", min_value=0.0, value=5000.0, step=500.0)
+    one_time_cost        = st.number_input("One-time cost ($)", min_value=0.0, value=0.0, step=500.0)
+    requested_date       = st.date_input("Date requested", value=date(date.today().year - 1, date.today().month, 1))
+    show_prep_cost       = st.toggle("Include prep hours", value=True)
 
-# ── Load base data ─────────────────────────────────────────────────────────────
-salary_df_raw = load_uploaded_or_default(salary_upload, DATA_DIR / "salary_table.csv")
+
+# ── load data ─────────────────────────────────────────────────────────────────
+salary_df_raw   = load_uploaded_or_default(salary_upload,  DATA_DIR / "salary_table.csv")
 meetings_df_raw = load_uploaded_or_default(meeting_upload, DATA_DIR / "meetings.csv")
+solution_total  = annual_solution_cost + one_time_cost
 
-# ── INLINE EDITABLE SECTION ────────────────────────────────────────────────────
-with st.expander("✏️ Edit inputs", expanded=True):
-    inp_col1, inp_col2, inp_col3 = st.columns([1.1, 1.4, 0.9], gap="large")
 
-    # 1. Solution assumptions
-    with inp_col1:
-        st.markdown('<div class="edit-card-title">Solution assumptions</div>', unsafe_allow_html=True)
-        solution_name = st.text_input("Solution name", value="Requested API", key="sol_name")
-        annual_solution_cost = st.number_input("Annual solution cost ($)", min_value=0.0, value=5000.0, step=500.0, key="sol_cost")
-        one_time_cost = st.number_input("One-time implementation cost ($)", min_value=0.0, value=0.0, step=500.0, key="sol_onetime")
-        requested_date = st.date_input(
-            "Date originally requested",
-            value=date(date.today().year - 1, date.today().month, 1),
-            key="sol_date",
-        )
-        show_prep_cost = st.toggle("Include prep hours in total cost", value=True, key="sol_prep")
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE TITLE + SOLUTION BAR
+# ══════════════════════════════════════════════════════════════════════════════
+title_col, sol_col = st.columns([1.1, 1], gap="large")
 
-    # 2. Salary table
-    with inp_col2:
-        st.markdown('<div class="edit-card-title">Salary table — edit any cell, add/delete rows</div>', unsafe_allow_html=True)
-        salary_df = st.data_editor(
-            salary_df_raw,
-            use_container_width=True,
-            num_rows="dynamic",
-            key="salary_editor",
-        )
+with title_col:
+    st.markdown("## MEETING COST CALCULATOR")
+    st.caption("Calculate the true cost of meetings while waiting for a solution.  \nSee the impact of time, people, and delay.")
 
-    # 3. Meeting log
-    with inp_col3:
-        st.markdown('<div class="edit-card-title">Meeting assumptions</div>', unsafe_allow_html=True)
-        meeting_length = st.number_input("Meeting length (hours)", min_value=0.25, value=1.0, step=0.25, key="mtg_len")
-        months_of_meetings = st.number_input("Months of meetings", min_value=1, value=12, step=1, key="mtg_months")
-        fully_loaded = st.selectbox("Fully loaded cost?", ["Yes", "No"], key="mtg_loaded")
+with sol_col:
+    st.markdown(f"""
+    <div class="solution-bar">
+        <div>
+            <div class="solution-bar-label">Solution Cost <span style="font-weight:400;color:#3a5798;">(Physical Cost)</span></div>
+            <div class="solution-bar-sub">Annual Cost of {solution_name}</div>
+        </div>
+        <div>
+            <div class="solution-bar-value">{money(solution_total)}</div>
+            <div class="solution-bar-per">per year</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# ── Meeting log editor (full width, below assumptions) ─────────────────────────
-with st.expander("✏️ Edit meeting log", expanded=True):
-    st.caption("Add, remove, or edit meeting rows. Changes update all calculations immediately.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN TWO-COLUMN LAYOUT
+# ══════════════════════════════════════════════════════════════════════════════
+left_col, right_col = st.columns([1, 1.05], gap="large")
+
+# ─────────────── LEFT COLUMN ─────────────────────────────────────────────────
+with left_col:
+
+    # 1. Salary table
+    st.markdown('<div class="sec-header">1. &nbsp;Average Salary Table <span style="font-weight:400;opacity:.7;">(Loaded)</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-body">', unsafe_allow_html=True)
+    salary_df = st.data_editor(
+        salary_df_raw,
+        use_container_width=True,
+        num_rows="dynamic",
+        key="salary_editor",
+        hide_index=True,
+    )
+    st.caption("*Loaded hourly rate includes benefits and overhead (2,080 hours per year)")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    salary_calc_df = clean_salary_table(salary_df.copy())
+    roles = salary_calc_df["role"].astype(str).tolist()
+
+    # 2. Meetings input
+    st.markdown('<div class="sec-header">2. &nbsp;Meetings Input</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-body">', unsafe_allow_html=True)
     meetings_df = st.data_editor(
         meetings_df_raw,
         use_container_width=True,
         num_rows="dynamic",
         key="meeting_editor",
+        hide_index=True,
     )
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ── Calculations ───────────────────────────────────────────────────────────────
-salary_calc_df = clean_salary_table(salary_df.copy())
-roles = salary_calc_df["role"].astype(str).tolist()
+    # 3. Assumptions
+    st.markdown('<div class="sec-header">3. &nbsp;Assumptions</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-body">', unsafe_allow_html=True)
+    a1, a2, a3 = st.columns(3)
+    with a1:
+        meeting_length = st.number_input("Meeting Length (hours)", min_value=0.25, value=1.0, step=0.25, key="mtg_len")
+    with a2:
+        months_of_meetings = st.number_input("Months of Meetings", min_value=1, value=12, step=1, key="mtg_months")
+    with a3:
+        fully_loaded = st.selectbox("Fully Loaded Cost?", ["Yes", "No"], key="mtg_loaded")
+    st.info("This calculator shows the internal cost of meetings and delays.  \n**The true cost of delay is more than just money.**")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-meeting_calc_df = clean_meeting_table(meetings_df.copy(), roles)
-result_df, metrics = calculate_meeting_costs(salary_calc_df, meeting_calc_df, roles)
 
-total_cost = metrics["total_cost"] if show_prep_cost else metrics["total_meeting_cost"]
-solution_total = annual_solution_cost + one_time_cost
-comparison = calculate_comparison_metrics(total_cost, solution_total)
-role_summary_df = calculate_role_summary(result_df, roles)
-months_since_request = months_between(requested_date, date.today())
-roi_pct = ((total_cost - solution_total) / solution_total * 100) if solution_total > 0 else 0.0
+# ─────────────── RIGHT COLUMN ─────────────────────────────────────────────────
+with right_col:
 
-# ══════════════════════════════════════════════════════════════════════════════
-# EXECUTIVE DASHBOARD VIEW
-# ══════════════════════════════════════════════════════════════════════════════
-if view_mode == "Executive Dashboard":
-    st.markdown('<div class="page-chip">Executive summary view</div>', unsafe_allow_html=True)
+    meeting_calc_df      = clean_meeting_table(meetings_df.copy(), roles)
+    result_df, metrics   = calculate_meeting_costs(salary_calc_df, meeting_calc_df, roles)
+    total_cost           = metrics["total_cost"] if show_prep_cost else metrics["total_meeting_cost"]
+    comparison           = calculate_comparison_metrics(total_cost, solution_total)
+    role_summary_df      = calculate_role_summary(result_df, roles)
+    months_since_request = months_between(requested_date, date.today())
+    roi_pct              = ((total_cost - solution_total) / solution_total * 100) if solution_total > 0 else 0.0
 
-    hero_left, hero_right = st.columns([1.2, 1], gap="large")
+    # Total cost of meetings panel
+    st.markdown('<div class="sec-header">Total Cost of Meetings</div>', unsafe_allow_html=True)
+    st.markdown('<div class="cost-hero-panel">', unsafe_allow_html=True)
 
-    with hero_left:
-        animated_currency_card(
-            "Total Cost of Meetings",
-            total_cost,
-            accent="#13823b",
-            height=165,
-            element_id="animated-meeting-total",
-        )
+    inner_left, inner_right = st.columns([1.35, 0.8], gap="medium")
 
-    with hero_right:
-        st.markdown(
-            f"""
-            <div class="hero-card" style="min-height:165px;">
-                <div class="hero-label">Solution Cost (Physical Cost)</div>
-                <div style="color:#173f8a; font-size:1.2rem; margin-bottom:10px;">Annual cost of {solution_name}</div>
-                <div style="color:#1746a2; font-size:3rem; font-weight:800; line-height:1.0;">{money(solution_total)}</div>
-                <div style="color:#1746a2; font-size:1.2rem; font-weight:600; margin-top:6px;">per year</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    k1, k2, k3, k4 = st.columns(4)
-    kpis = [
-        ("Cost multiple", f"{comparison['cost_multiple']:.1f}x", "times the cost of the solution"),
-        ("Months since request", f"{months_since_request}", "months of delay tracked"),
-        ("Meetings logged", f"{int(metrics['total_meetings'])}", "total meetings in the model"),
-        ("Total hours", f"{metrics['total_hours']:.1f}", "meeting hours counted"),
-    ]
-    for col, (title, number, support) in zip([k1, k2, k3, k4], kpis):
-        with col:
-            st.markdown(
-                f"""
-                <div class="kpi-card">
-                    <div class="kpi-title">{title}</div>
-                    <div class="kpi-number">{number}</div>
-                    <div class="kpi-support">{support}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    left, right = st.columns([0.95, 1.25], gap="large")
-
-    with left:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Average salary table")
-        display_salary = salary_calc_df[["role", "annual_salary", "loaded_hourly_rate"]].copy()
-        display_salary.columns = ["Role", "Average Salary", "Loaded Hourly Rate"]
-        display_salary["Average Salary"] = display_salary["Average Salary"].map(lambda x: money(float(x)))
-        display_salary["Loaded Hourly Rate"] = display_salary["Loaded Hourly Rate"].map(lambda x: f"${float(x):,.2f}")
-        st.dataframe(display_salary, use_container_width=True, hide_index=True)
-        st.caption("*Loaded hourly rate includes benefits and overhead based on 2,080 hours per year.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Meetings input")
-        meeting_display_cols = ["meeting_name", "meeting_date", "number_of_meetings"] + [r for r in roles if r in meeting_calc_df.columns]
-        if not meeting_calc_df.empty:
-            display_meetings = meeting_calc_df[meeting_display_cols].copy()
-            display_meetings.columns = [c.replace("_", " ").title() for c in display_meetings.columns]
-            st.dataframe(display_meetings, use_container_width=True, hide_index=True)
+    with inner_left:
+        piggy_path = ASSET_DIR / "piggy_bank_mockup.png"
+        if piggy_path.exists():
+            st.image(str(piggy_path), use_container_width=True)
         else:
-            st.info("No meeting rows available yet.")
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size:5rem;text-align:center;padding:20px 0;">🐷</div>', unsafe_allow_html=True)
 
-    with right:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Total cost of meetings")
-        hero_a, hero_b = st.columns([1.2, 0.8], gap="large")
-        with hero_a:
-            piggy_path = ASSET_DIR / "piggy_bank_mockup.png"
-            if piggy_path.exists():
-                st.image(str(piggy_path), use_container_width=True)
-            else:
-                st.warning("Piggy bank image not found.")
-        with hero_b:
-            st.metric("Total spent in meetings", money(total_cost))
-            st.metric("Annual solution cost", money(solution_total))
-            st.metric("Difference", money(comparison["net_over_solution"]))
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="cost-big-number">{money(total_cost)}</div>
+        <div class="cost-label">Total Spent in Meetings</div>
+        <div class="cost-sub">(Over {months_since_request} Months)</div>
+        """, unsafe_allow_html=True)
 
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Cumulative cost over time")
+    with inner_right:
+        st.markdown(f"""
+        <div class="multiplier-box">
+            <div class="mult-that">That's</div>
+            <div class="mult-num">{comparison['cost_multiple']:.0f}x</div>
+            <div class="mult-desc">the cost of the<br>{solution_name} per year!</div>
+        </div>
+        <div class="api-cost-box">
+            <div class="api-cost-label">API Annual Cost</div>
+            <div class="api-cost-value">{money(solution_total)}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Cumulative cost chart
+    st.markdown('<div class="sec-header">Cumulative Cost Over Time</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-body">', unsafe_allow_html=True)
+
+    chart_col, ann_col = st.columns([1.6, 0.6], gap="medium")
+
+    with chart_col:
         if not result_df.empty and "meeting_date" in result_df.columns:
             plot_df = result_df.dropna(subset=["meeting_date"]).copy()
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.plot(plot_df["meeting_date"], plot_df["cumulative_cost"], marker="o")
-            ax.set_xlabel("")
-            ax.set_ylabel("Cost ($)")
-            ax.ticklabel_format(style="plain", axis="y")
+            fig, ax = plt.subplots(figsize=(6, 3.2))
+            ax.plot(plot_df["meeting_date"], plot_df["cumulative_cost"],
+                    color="#13823b", marker="o", markersize=5, linewidth=2)
+            ax.fill_between(plot_df["meeting_date"], plot_df["cumulative_cost"],
+                            alpha=0.08, color="#13823b")
+            ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+            ax.tick_params(axis="both", labelsize=8)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            plt.tight_layout()
             st.pyplot(fig)
         else:
-            st.info("Add meeting dates to display the cumulative trend chart.")
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.info("Add meeting dates to display the trend.")
 
-    st.markdown(
-        f"""
-        <div class="banner-box">
-            <div class="banner-title">Stop the drain. Approve the solution.</div>
-            <div class="banner-text">
-                You have spent {money(total_cost)} discussing a solution that costs {money(solution_total)}.
-                Estimated return on investment: {roi_pct:,.0f}%.
-            </div>
+    with ann_col:
+        months_label = months_since_request or months_of_meetings
+        st.markdown(f"""
+        <div class="chart-ann" style="margin-top:30px;">
+            <div class="chart-ann-label">After {months_label} months,<br>you've spent</div>
+            <div class="chart-ann-value">{money(total_cost)}</div>
+            <div class="chart-ann-label">in meetings.</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """, unsafe_allow_html=True)
 
-    chart_left, chart_right = st.columns([1.05, 1.05], gap="large")
-    with chart_left:
-        st.subheader("Calculated meeting details")
-        detail_cols = [
-            "meeting_name",
-            "meeting_date",
-            "duration_hours",
-            "number_of_meetings",
-            "total_people",
-            "meeting_cost",
-            "prep_cost",
-            "total_row_cost",
-            "cumulative_cost",
-        ]
-        existing_cols = [c for c in detail_cols if c in result_df.columns]
-        if existing_cols:
-            st.dataframe(result_df[existing_cols], use_container_width=True, hide_index=True)
-        else:
-            st.info("Meeting calculations will appear here.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    with chart_right:
-        st.subheader("Cost by role")
-        if not role_summary_df.empty:
-            fig2, ax2 = plt.subplots(figsize=(8, 4))
-            ax2.bar(role_summary_df["role"], role_summary_df["cost"])
-            ax2.set_xlabel("")
-            ax2.set_ylabel("Cost ($)")
-            ax2.ticklabel_format(style="plain", axis="y")
-            plt.xticks(rotation=45, ha="right")
-            st.pyplot(fig2)
-        else:
-            st.info("Add meetings and role counts to show role-based cost.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BOTTOM BANNER
+# ══════════════════════════════════════════════════════════════════════════════
+st.markdown(f"""
+<div class="banner">
+    <div class="banner-left">
+        💡 &nbsp;<strong>Stop the drain. Approve the solution.</strong>
+        &nbsp; Invest {money(solution_total)} in the {solution_name} to save {money(total_cost)} in people costs.
+    </div>
+    <div class="banner-roi">Return on Investment: &nbsp;<span>{roi_pct:,.0f}%</span></div>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CALCULATOR & INPUTS VIEW
 # ══════════════════════════════════════════════════════════════════════════════
-else:
-    st.markdown('<div class="page-chip">Calculator and maintenance view</div>', unsafe_allow_html=True)
+if view_mode == "Calculator & Inputs":
+    st.markdown("---")
+    st.subheader("Calculator & Inputs")
 
-    metric1, metric2, metric3, metric4 = st.columns(4)
-    metric1.metric("Solution cost", money(solution_total))
-    metric2.metric("Meeting labor cost", money(total_cost))
-    metric3.metric("Cost multiple", f"{comparison['cost_multiple']:.1f}x" if solution_total > 0 else "n/a")
-    metric4.metric("Months since request", months_since_request)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Solution cost",        money(solution_total))
+    m2.metric("Meeting labor cost",   money(total_cost))
+    m3.metric("Cost multiple",        f"{comparison['cost_multiple']:.1f}x" if solution_total > 0 else "n/a")
+    m4.metric("Months since request", months_since_request)
 
-    st.markdown(
-        f"""
-        <div class="section-card">
-            <div class="small-note">Use this page to maintain the input data. The Executive Dashboard view uses the same live values.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    left, right = st.columns([1, 1], gap="large")
-    with left:
+    cl, cr = st.columns(2, gap="large")
+    with cl:
         st.subheader("Loaded salary rates")
-        display_salary = salary_calc_df.copy()
-        for col in ["annual_salary", "loaded_annual_cost", "loaded_hourly_rate"]:
-            display_salary[col] = display_salary[col].map(lambda x: round(float(x), 2))
-        st.dataframe(display_salary, use_container_width=True, hide_index=True)
+        ds = salary_calc_df.copy()
+        for c in ["annual_salary", "loaded_annual_cost", "loaded_hourly_rate"]:
+            if c in ds.columns:
+                ds[c] = ds[c].map(lambda x: round(float(x), 2))
+        st.dataframe(ds, use_container_width=True, hide_index=True)
 
-    with right:
-        st.subheader("Meeting inputs")
-        st.dataframe(meeting_calc_df, use_container_width=True, hide_index=True)
-
-    st.subheader("Narrative")
-    if solution_total > 0:
-        st.info(
-            f"Based on the values entered, your organization has spent {money(total_cost)} on meetings "
-            f"related to {solution_name}. That is {comparison['cost_multiple']:.1f} times the entered cost "
-            f"of the solution."
-        )
-    else:
-        st.info(f"Based on the values entered, your organization has spent {money(total_cost)} on meetings related to {solution_name}.")
-
-    bottom_left, bottom_right = st.columns([1, 1], gap="large")
-    with bottom_left:
+    with cr:
         st.subheader("Calculated meeting details")
-        st.dataframe(result_df, use_container_width=True, hide_index=True)
-    with bottom_right:
-        st.subheader("Cost by role")
-        if not role_summary_df.empty:
-            fig3, ax3 = plt.subplots(figsize=(8, 4))
-            ax3.bar(role_summary_df["role"], role_summary_df["cost"])
-            ax3.set_xlabel("")
-            ax3.set_ylabel("Cost ($)")
-            ax3.ticklabel_format(style="plain", axis="y")
-            plt.xticks(rotation=45, ha="right")
-            st.pyplot(fig3)
-        else:
-            st.info("Add meetings and role counts to show role-based cost.")
+        detail_cols = ["meeting_name","meeting_date","duration_hours","number_of_meetings",
+                       "total_people","meeting_cost","prep_cost","total_row_cost","cumulative_cost"]
+        existing = [c for c in detail_cols if c in result_df.columns]
+        st.dataframe(result_df[existing] if existing else result_df, use_container_width=True, hide_index=True)
 
-# ── Downloads ──────────────────────────────────────────────────────────────────
-st.subheader("Download current working tables")
+    if solution_total > 0:
+        st.info(f"Your organisation has spent {money(total_cost)} on meetings related to {solution_name} — "
+                f"{comparison['cost_multiple']:.1f}× the solution cost.")
+
+    if not role_summary_df.empty:
+        st.subheader("Cost by role")
+        fig3, ax3 = plt.subplots(figsize=(9, 3.5))
+        ax3.bar(role_summary_df["role"], role_summary_df["cost"], color="#1746a2")
+        ax3.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+        ax3.spines["top"].set_visible(False)
+        ax3.spines["right"].set_visible(False)
+        plt.xticks(rotation=35, ha="right", fontsize=8)
+        plt.tight_layout()
+        st.pyplot(fig3)
+
+
+# ── downloads ─────────────────────────────────────────────────────────────────
+st.markdown("---")
 dl1, dl2 = st.columns(2)
 with dl1:
-    st.download_button(
-        "Download salary table CSV",
+    st.download_button("⬇ Download salary table CSV",
         data=salary_calc_df.to_csv(index=False).encode("utf-8"),
-        file_name="salary_table_updated.csv",
-        mime="text/csv",
-    )
+        file_name="salary_table_updated.csv", mime="text/csv")
 with dl2:
-    st.download_button(
-        "Download meeting results CSV",
+    st.download_button("⬇ Download meeting results CSV",
         data=result_df.to_csv(index=False).encode("utf-8"),
-        file_name="meeting_results.csv",
-        mime="text/csv",
-    )
+        file_name="meeting_results.csv", mime="text/csv")
