@@ -23,7 +23,6 @@ DATA_DIR  = BASE_DIR / "data"
 ASSET_DIR = BASE_DIR / "assets"
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
 def money(v: float) -> str:
     return f"${v:,.0f}"
 
@@ -40,7 +39,6 @@ def months_between(start: date, end: date) -> int:
     return max(m, 0)
 
 
-# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
@@ -142,8 +140,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-# ── sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Navigation")
     view_mode = st.radio("View", ["Dashboard", "Calculator & Inputs"], index=0, label_visibility="collapsed")
@@ -161,16 +157,10 @@ with st.sidebar:
     requested_date       = st.date_input("Date requested", value=date(date.today().year - 1, date.today().month, 1))
     show_prep_cost       = st.toggle("Include prep hours", value=True)
 
-
-# ── load data ─────────────────────────────────────────────────────────────────
 salary_df_raw   = load_uploaded_or_default(salary_upload,  DATA_DIR / "salary_table.csv")
 meetings_df_raw = load_uploaded_or_default(meeting_upload, DATA_DIR / "meetings.csv")
 solution_total  = annual_solution_cost + one_time_cost
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE TITLE + SOLUTION BAR
-# ══════════════════════════════════════════════════════════════════════════════
 title_col, sol_col = st.columns([1.1, 1], gap="large")
 
 with title_col:
@@ -191,16 +181,9 @@ with sol_col:
     </div>
     """, unsafe_allow_html=True)
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# MAIN TWO-COLUMN LAYOUT
-# ══════════════════════════════════════════════════════════════════════════════
 left_col, right_col = st.columns([1, 1.05], gap="large")
 
-# ─────────────── LEFT COLUMN ─────────────────────────────────────────────────
 with left_col:
-
-    # 1. Salary table
     st.markdown('<div class="sec-header">1. &nbsp;Average Salary Table <span style="font-weight:400;opacity:.7;">(Loaded)</span></div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-body">', unsafe_allow_html=True)
     salary_df = st.data_editor(
@@ -216,7 +199,6 @@ with left_col:
     salary_calc_df = clean_salary_table(salary_df.copy())
     roles = salary_calc_df["role"].astype(str).tolist()
 
-    # 2. Meetings input
     st.markdown('<div class="sec-header">2. &nbsp;Meetings Input</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-body">', unsafe_allow_html=True)
     meetings_df = st.data_editor(
@@ -228,7 +210,6 @@ with left_col:
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. Assumptions
     st.markdown('<div class="sec-header">3. &nbsp;Assumptions</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-body">', unsafe_allow_html=True)
     a1, a2, a3 = st.columns(3)
@@ -241,10 +222,7 @@ with left_col:
     st.info("This calculator shows the internal cost of meetings and delays.  \n**The true cost of delay is more than just money.**")
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ─────────────── RIGHT COLUMN ─────────────────────────────────────────────────
 with right_col:
-
     meeting_calc_df      = clean_meeting_table(meetings_df.copy(), roles)
     result_df, metrics   = calculate_meeting_costs(salary_calc_df, meeting_calc_df, roles)
     total_cost           = metrics["total_cost"] if show_prep_cost else metrics["total_meeting_cost"]
@@ -253,7 +231,6 @@ with right_col:
     months_since_request = months_between(requested_date, date.today())
     roi_pct              = ((total_cost - solution_total) / solution_total * 100) if solution_total > 0 else 0.0
 
-    # Total cost of meetings panel
     st.markdown('<div class="sec-header">Total Cost of Meetings</div>', unsafe_allow_html=True)
     st.markdown('<div class="cost-hero-panel">', unsafe_allow_html=True)
 
@@ -287,7 +264,6 @@ with right_col:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Cumulative cost chart
     st.markdown('<div class="sec-header">Cumulative Cost Over Time</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-body">', unsafe_allow_html=True)
 
@@ -322,10 +298,6 @@ with right_col:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# BOTTOM BANNER
-# ══════════════════════════════════════════════════════════════════════════════
 st.markdown(f"""
 <div class="banner">
     <div class="banner-left">
@@ -336,10 +308,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CALCULATOR & INPUTS VIEW
-# ══════════════════════════════════════════════════════════════════════════════
 if view_mode == "Calculator & Inputs":
     st.markdown("---")
     st.subheader("Calculator & Inputs")
@@ -381,8 +349,6 @@ if view_mode == "Calculator & Inputs":
         plt.tight_layout()
         st.pyplot(fig3)
 
-
-# ── downloads ─────────────────────────────────────────────────────────────────
 st.markdown("---")
 dl1, dl2 = st.columns(2)
 with dl1:
