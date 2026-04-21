@@ -126,7 +126,7 @@ with right:
     hero_a, hero_b = st.columns([1.15, 1])
 
     with hero_a:
-        piggy_path = ASSET_DIR / "piggy_bank_mockup.png"
+        piggy_path = ASSET_DIR / "piggy_bank_flying_money.png"
         if piggy_path.exists():
             st.image(str(piggy_path), use_container_width=True)
         else:
